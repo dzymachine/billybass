@@ -1,0 +1,6 @@
+google-genai
+pvporcupine
+pvrecorder
+faster-whisper
+numpy
+piper-tts

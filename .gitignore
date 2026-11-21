@@ -1,0 +1,18 @@
+# Python / virtualenv
+__pycache__/
+*.py[cod]
+billy-env/
+.venv/
+
+# Secrets & keys
+.env
+*.ppn
+
+# Audio / models / temp
+*.wav
+*.onnx
+*.onnx.json
+models/
+
+# OS
+.DS_Store

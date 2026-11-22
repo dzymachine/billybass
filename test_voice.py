@@ -5,7 +5,7 @@ import requests
 from google import genai
 from google.genai import types
 
-VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"  # George; swap with any Voice ID from elevenlabs.io
+VOICE_ID = "NOpBlnGInO9m6vDvFkFC"  # Grandpa Spuds Oxley
 
 ai = genai.Client()
 reply = ai.models.generate_content(

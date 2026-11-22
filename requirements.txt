@@ -3,4 +3,4 @@ pvporcupine
 pvrecorder
 faster-whisper
 numpy
-piper-tts
+requests

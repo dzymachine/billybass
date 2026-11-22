@@ -7,6 +7,7 @@ from google import genai
 from google.genai import types
 import numpy as np
 import pvporcupine
+import requests
 from faster_whisper import WhisperModel
 from gpiozero import Motor
 from pvrecorder import PvRecorder
@@ -14,7 +15,8 @@ from pvrecorder import PvRecorder
 # ---------- settings you may need to change ----------
 MODEL = "gemini-3.8-flash"   # fast Gemini model for spoken replies
 WAKE_WORD_FILE = os.path.expanduser("~/Hey-Billy.ppn")
-VOICE = "en_US-danny-low"
+ELEVENLABS_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"  # George; swap with any Voice ID from elevenlabs.io
+ELEVENLABS_MODEL = "eleven_flash_v2_5"        # ultra-low latency
 SILENCE_LEVEL = 500          # raise this if it never stops listening
 MOUTH_LEVEL = 800            # lower this if the mouth stays shut
 MOUTH_SPEED = 0.7            # 0 to 1
@@ -96,10 +98,24 @@ def ask(text):
 
 def speak(text):
     wav_path = "/tmp/billy_reply.wav"
-    subprocess.run(
-        ["python3", "-m", "piper", "-m", VOICE, "-f", wav_path, "--", text],
-        check=True,
+    url = f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE_ID}?output_format=pcm_16000"
+    response = requests.post(
+        url,
+        headers={
+            "xi-api-key": os.environ["ELEVENLABS_API_KEY"],
+            "Content-Type": "application/json",
+        },
+        json={"text": text, "model_id": ELEVENLABS_MODEL},
+        timeout=30,
     )
+    response.raise_for_status()
+
+    with wave.open(wav_path, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(16000)
+        w.writeframes(response.content)
+
     with wave.open(wav_path) as w:
         rate = w.getframerate()
         samples = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16)

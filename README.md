@@ -9,4 +9,5 @@ Voice-activated Big Mouth Billy Bass powered by a Raspberry Pi 3, Porcupine wake
 
 ## Environment Variables (on the Pi)
 - `GEMINI_API_KEY` — Google AI Studio / Gemini API key
+- `ELEVENLABS_API_KEY` — ElevenLabs API key for text-to-speech
 - `PICOVOICE_ACCESS_KEY` — Picovoice Porcupine AccessKey (paired with `~/Hey-Billy.ppn`)

@@ -11,8 +11,7 @@ reply = ai.models.generate_content(
             "You are Billy, a talking singing fish mounted on a wall plaque. "
             "Be warm, funny and brief."
         ),
-        max_output_tokens=512,
-        thinking_config=types.ThinkingConfig(thinking_level="minimal"),
+        max_output_tokens=1024,
     ),
 )
 

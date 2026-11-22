@@ -86,8 +86,7 @@ def ask(text):
         contents=history,
         config=types.GenerateContentConfig(
             system_instruction=SYSTEM,
-            max_output_tokens=512,
-            thinking_config=types.ThinkingConfig(thinking_level="minimal"),
+            max_output_tokens=1024,
         ),
     )
     answer = (reply.text or "").strip()

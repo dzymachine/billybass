@@ -6,7 +6,8 @@ import wave
 from google import genai
 from google.genai import types
 import numpy as np
-import pvporcupine
+import openwakeword
+from openwakeword.model import Model
 import requests
 from faster_whisper import WhisperModel
 from gpiozero import Motor
@@ -14,7 +15,8 @@ from pvrecorder import PvRecorder
 
 # ---------- settings you may need to change ----------
 MODEL = "gemini-3.8-flash"   # fast Gemini model for spoken replies
-WAKE_WORD_FILE = os.path.expanduser("~/Hey-Billy.ppn")
+WAKE_WORD = "hey_jarvis"     # built-in openWakeWord options: hey_jarvis, hey_mycroft, alexa
+WAKE_THRESHOLD = 0.5         # raise to 0.6 if it triggers accidentally
 ELEVENLABS_VOICE_ID = "pqHfZKP75CvOlQylNhV4"  # Bill (premade voice; works on free tier)
 ELEVENLABS_MODEL = "eleven_flash_v2_5"        # ultra-low latency
 SILENCE_LEVEL = 500          # raise this if it never stops listening
@@ -31,25 +33,25 @@ SYSTEM = (
 mouth = Motor(forward=5, backward=6, enable=12)
 body = Motor(forward=19, backward=26, enable=13)
 stt = WhisperModel("tiny.en", device="cpu", compute_type="int8")
+openwakeword.utils.download_models([WAKE_WORD])
+oww = Model(wakeword_models=[WAKE_WORD], inference_framework="onnx")
 ai = genai.Client()          # reads GEMINI_API_KEY from the environment
 history = []
 
 
 def wait_for_wake_word():
-    porcupine = pvporcupine.create(
-        access_key=os.environ["PICOVOICE_ACCESS_KEY"],
-        keyword_paths=[WAKE_WORD_FILE],
-    )
-    rec = PvRecorder(frame_length=porcupine.frame_length, device_index=MIC_INDEX)
+    oww.reset()
+    rec = PvRecorder(frame_length=1280, device_index=MIC_INDEX)
     rec.start()
     try:
         while True:
-            if porcupine.process(rec.read()) >= 0:
+            audio = np.array(rec.read(), dtype=np.int16)
+            scores = oww.predict(audio)
+            if any(score > WAKE_THRESHOLD for score in scores.values()):
                 return
     finally:
         rec.stop()
         rec.delete()
-        porcupine.delete()
 
 
 def listen():

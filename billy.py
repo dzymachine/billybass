@@ -15,7 +15,7 @@ from pvrecorder import PvRecorder
 # ---------- settings you may need to change ----------
 MODEL = "gemini-3.8-flash"   # fast Gemini model for spoken replies
 WAKE_WORD_FILE = os.path.expanduser("~/Hey-Billy.ppn")
-ELEVENLABS_VOICE_ID = "NOpBlnGInO9m6vDvFkFC"  # Grandpa Spuds Oxley
+ELEVENLABS_VOICE_ID = "pqHfZKP75CvOlQylNhV4"  # Bill (premade voice; works on free tier)
 ELEVENLABS_MODEL = "eleven_flash_v2_5"        # ultra-low latency
 SILENCE_LEVEL = 500          # raise this if it never stops listening
 MOUTH_LEVEL = 800            # lower this if the mouth stays shut

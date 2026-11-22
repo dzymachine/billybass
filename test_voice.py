@@ -5,7 +5,7 @@ import requests
 from google import genai
 from google.genai import types
 
-VOICE_ID = "NOpBlnGInO9m6vDvFkFC"  # Grandpa Spuds Oxley
+VOICE_ID = "pqHfZKP75CvOlQylNhV4"  # Bill (premade voice; works on free tier)
 
 ai = genai.Client()
 reply = ai.models.generate_content(
@@ -33,7 +33,9 @@ response = requests.post(
     json={"text": answer, "model_id": "eleven_flash_v2_5"},
     timeout=30,
 )
-response.raise_for_status()
+if not response.ok:
+    print("ElevenLabs error:", response.status_code, response.text)
+    response.raise_for_status()
 
 wav_path = "/tmp/test_billy.wav"
 with wave.open(wav_path, "wb") as w:

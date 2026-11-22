@@ -11,11 +11,12 @@ reply = ai.models.generate_content(
             "You are Billy, a talking singing fish mounted on a wall plaque. "
             "Be warm, funny and brief."
         ),
-        max_output_tokens=100,
+        max_output_tokens=512,
+        thinking_config=types.ThinkingConfig(thinking_level="minimal"),
     ),
 )
 
-answer = reply.text.strip()
+answer = (reply.text or "").strip()
 print("Billy:", answer)
 
 subprocess.run(

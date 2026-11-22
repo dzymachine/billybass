@@ -86,10 +86,11 @@ def ask(text):
         contents=history,
         config=types.GenerateContentConfig(
             system_instruction=SYSTEM,
-            max_output_tokens=150,
+            max_output_tokens=512,
+            thinking_config=types.ThinkingConfig(thinking_level="minimal"),
         ),
     )
-    answer = reply.text.strip()
+    answer = (reply.text or "").strip()
     history.append(types.Content(role="model", parts=[types.Part.from_text(text=answer)]))
     return answer
 

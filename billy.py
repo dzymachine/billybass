@@ -12,7 +12,7 @@ from gpiozero import Motor
 from pvrecorder import PvRecorder
 
 # ---------- settings you may need to change ----------
-MODEL = "gemini-2.5-flash"   # fast Gemini model for spoken replies
+MODEL = "gemini-3.8-flash"   # fast Gemini model for spoken replies
 WAKE_WORD_FILE = os.path.expanduser("~/Hey-Billy.ppn")
 VOICE = "en_US-danny-low"
 SILENCE_LEVEL = 500          # raise this if it never stops listening

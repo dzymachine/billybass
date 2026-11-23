@@ -9,7 +9,7 @@ VOICE_ID = "pqHfZKP75CvOlQylNhV4"  # Bill (premade voice; works on free tier)
 
 ai = genai.Client()
 reply = ai.models.generate_content(
-    model="gemini-3.8-flash",
+    model="gemini-3.5-flash-lite",
     contents="Introduce yourself in one funny sentence.",
     config=types.GenerateContentConfig(
         system_instruction=(

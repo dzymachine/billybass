@@ -15,7 +15,12 @@ import requests
 from gpiozero import Motor
 
 # ---------- settings you may need to change ----------
-MODEL = "gemini-3.8-flash"   # fast Gemini model for spoken replies
+MODELS = [                   # tried in order; falls back automatically on 503 busy errors
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
+    "gemini-3.7-flash",
+    "gemini-3.8-flash",
+]
 WAKE_WORD = "hey_jarvis"     # built-in openWakeWord options: hey_jarvis, hey_mycroft, alexa
 WAKE_THRESHOLD = 0.5         # raise to 0.6 if it triggers accidentally
 ELEVENLABS_VOICE_ID = "pqHfZKP75CvOlQylNhV4"  # Bill (premade voice; works on free tier)
@@ -124,15 +129,25 @@ def listen():
 def ask_audio(wav_bytes):
     audio_part = types.Part.from_bytes(data=wav_bytes, mime_type="audio/wav")
     contents = history + [types.Content(role="user", parts=[audio_part])]
-    reply = ai.models.generate_content(
-        model=MODEL,
-        contents=contents,
-        config=types.GenerateContentConfig(
-            system_instruction=SYSTEM,
-            max_output_tokens=1024,
-            response_mime_type="application/json",
-        ),
-    )
+    reply = None
+    last_error = None
+    for model_name in MODELS:
+        try:
+            reply = ai.models.generate_content(
+                model=model_name,
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    system_instruction=SYSTEM,
+                    max_output_tokens=1024,
+                    response_mime_type="application/json",
+                ),
+            )
+            break
+        except Exception as err:
+            last_error = err
+            print(f"({model_name} unavailable, trying next...)")
+    if reply is None:
+        raise last_error
     data = json.loads(reply.text or "{}")
     heard = (data.get("heard") or "").strip()
     answer = (data.get("reply") or "").strip()

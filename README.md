@@ -1,6 +1,6 @@
 # AI Billy Bass
 
-Voice-activated Big Mouth Billy Bass powered by a Raspberry Pi 3, `openWakeWord`, `faster-whisper` STT, Google Gemini (`google-genai`), ElevenLabs TTS, and a TB6612FNG dual motor driver.
+Voice-activated Big Mouth Billy Bass powered by a Raspberry Pi 3, `openWakeWord`, Google Gemini (`google-genai`, native audio input), ElevenLabs TTS, and a TB6612FNG dual motor driver.
 
 ## Files
 - `billy.py` — main wake-word, speech, Gemini AI, TTS, and mouth-sync loop

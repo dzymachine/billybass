@@ -1,3 +1,5 @@
+import io
+import json
 import os
 import subprocess
 import time
@@ -10,7 +12,6 @@ import openwakeword
 import openwakeword.utils
 from openwakeword.model import Model
 import requests
-from faster_whisper import WhisperModel
 from gpiozero import Motor
 
 # ---------- settings you may need to change ----------
@@ -26,13 +27,15 @@ MIC_DEVICE = "plughw:Device,0"  # ALSA capture device from `arecord -l`
 SYSTEM = (
     "You are Billy, a talking singing fish mounted on a wall plaque. "
     "Be warm, funny and brief. Answer in one or two short spoken sentences. "
-    "Never use lists, markdown or emojis, because your words are spoken aloud."
+    "Never use lists, markdown or emojis, because your words are spoken aloud. "
+    "Respond in JSON with exactly two keys: "
+    "\"heard\" (exact transcript of what the user said in the audio) and "
+    "\"reply\" (your spoken answer as Billy)."
 )
 # ------------------------------------------------------
 
 mouth = Motor(forward=5, backward=6, enable=12)
 body = Motor(forward=19, backward=26, enable=13)
-stt = WhisperModel("tiny.en", device="cpu", compute_type="int8")
 if hasattr(openwakeword.utils, "download_models"):
     openwakeword.utils.download_models([WAKE_WORD])
 oww = Model(wakeword_models=[WAKE_WORD], inference_framework="onnx")
@@ -70,7 +73,7 @@ def wait_for_wake_word():
 
 
 def listen():
-    """Record until about 1.3 seconds of quiet follows speech (10 second limit)."""
+    """Record until about 0.7 seconds of quiet follows speech (10 second limit)."""
     proc = open_mic_stream()
     frames, quiet_frames, speech_frames, heard_speech = [], 0, 0, False
     max_loudness = 0.0
@@ -99,33 +102,45 @@ def listen():
     finally:
         proc.terminate()
         proc.wait()
-    audio = np.concatenate(frames).astype(np.float32) / 32768.0
-    peak = float(np.max(np.abs(audio))) if len(audio) else 0.0
-    if peak > 0:
-        audio = audio * min(20.0, 0.8 / peak)  # boost quiet mics for Whisper
+
     print(f"(Recorded {len(frames) * 512 / 16000:.1f}s, peak loudness: {max_loudness:.0f})")
-    return audio
+    if not heard_speech or not frames:
+        return None
+
+    pcm = np.concatenate(frames).astype(np.float32)
+    peak = float(np.max(np.abs(pcm)))
+    if peak > 0:
+        pcm = np.clip(pcm * min(20.0, 26000.0 / peak), -32768, 32767)
+
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(16000)
+        w.writeframes(pcm.astype(np.int16).tobytes())
+    return buf.getvalue()
 
 
-def transcribe(audio):
-    segments, _ = stt.transcribe(audio, language="en", beam_size=1)
-    return " ".join(s.text for s in segments).strip()
-
-
-def ask(text):
-    history.append(types.Content(role="user", parts=[types.Part.from_text(text=text)]))
-    del history[:-10]  # keep only the recent conversation
+def ask_audio(wav_bytes):
+    audio_part = types.Part.from_bytes(data=wav_bytes, mime_type="audio/wav")
+    contents = history + [types.Content(role="user", parts=[audio_part])]
     reply = ai.models.generate_content(
         model=MODEL,
-        contents=history,
+        contents=contents,
         config=types.GenerateContentConfig(
             system_instruction=SYSTEM,
             max_output_tokens=1024,
+            response_mime_type="application/json",
         ),
     )
-    answer = (reply.text or "").strip()
-    history.append(types.Content(role="model", parts=[types.Part.from_text(text=answer)]))
-    return answer
+    data = json.loads(reply.text or "{}")
+    heard = (data.get("heard") or "").strip()
+    answer = (data.get("reply") or "").strip()
+    if heard and answer:
+        history.append(types.Content(role="user", parts=[types.Part.from_text(text=heard)]))
+        history.append(types.Content(role="model", parts=[types.Part.from_text(text=answer)]))
+        del history[:-10]  # keep only the recent conversation
+    return heard, answer
 
 
 def speak(text):
@@ -179,12 +194,15 @@ if __name__ == "__main__":
             wait_for_wake_word()
             print("Wake word heard!")
             nod()                  # shows you it heard the wake word
-            text = transcribe(listen())
-            if not text:
+            wav_bytes = listen()
+            if not wav_bytes:
                 print("(Didn't catch any speech.)")
                 continue
-            print("You:", text)
-            answer = ask(text)
+            heard, answer = ask_audio(wav_bytes)
+            if not heard or not answer:
+                print("(Didn't catch any speech.)")
+                continue
+            print("You:", heard)
             print("Billy:", answer)
             speak(answer)
         except KeyboardInterrupt:

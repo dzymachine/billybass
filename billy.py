@@ -30,13 +30,15 @@ MOUTH_LEVEL = 800            # lower this if the mouth stays shut
 MOUTH_SPEED = 0.7            # 0 to 1
 MIC_DEVICE = "plughw:Device,0"      # ALSA capture device from `arecord -l`
 SPEAKER_DEVICE = "plughw:Headphones,0"  # ALSA playback device from `aplay -l`
+CONVERSATION_TIMEOUT = 6     # seconds of silence before returning to wake-word mode
 SYSTEM = (
     "You are Billy, a talking singing fish mounted on a wall plaque. "
     "Be warm, funny and brief. Answer in one or two short spoken sentences. "
     "Never use lists, markdown or emojis, because your words are spoken aloud. "
-    "Respond in JSON with exactly two keys: "
-    "\"heard\" (exact transcript of what the user said in the audio) and "
-    "\"reply\" (your spoken answer as Billy)."
+    "Respond in JSON with exactly three keys: "
+    "\"heard\" (exact transcript of what the user said in the audio), "
+    "\"reply\" (your spoken answer as Billy), and "
+    "\"end\" (boolean: true only if the user is saying goodbye or ending the conversation)."
 )
 # ------------------------------------------------------
 
@@ -78,18 +80,23 @@ def wait_for_wake_word():
         proc.wait()
 
 
-def listen():
-    """Record until about 0.7 seconds of quiet follows speech (10 second limit)."""
+def listen(wait_seconds=CONVERSATION_TIMEOUT):
+    """Wait up to `wait_seconds` for speech, then record until ~0.7s of quiet."""
     proc = open_mic_stream()
     frames, quiet_frames, speech_frames, heard_speech = [], 0, 0, False
     max_loudness = 0.0
     started = time.time()
-    print("Listening... speak now!")
+    print(f"Listening... (up to {wait_seconds}s to start speaking)")
     try:
         # Discard the first ~0.16s in case opening the USB mic produces a click
         for _ in range(5):
             read_frame(proc, 512)
-        while time.time() - started < 10:
+        while True:
+            elapsed = time.time() - started
+            if not heard_speech and elapsed >= wait_seconds:
+                break
+            if elapsed >= wait_seconds + 10:
+                break
             frame = read_frame(proc, 512)
             frames.append(frame)
             loudness = float(np.sqrt(np.mean(frame.astype(np.float32) ** 2)))
@@ -152,11 +159,12 @@ def ask_audio(wav_bytes):
     data = json.loads(reply.text or "{}")
     heard = (data.get("heard") or "").strip()
     answer = (data.get("reply") or "").strip()
+    end = bool(data.get("end", False))
     if heard and answer:
         history.append(types.Content(role="user", parts=[types.Part.from_text(text=heard)]))
         history.append(types.Content(role="model", parts=[types.Part.from_text(text=answer)]))
         del history[:-10]  # keep only the recent conversation
-    return heard, answer
+    return heard, answer, end
 
 
 def speak(text):
@@ -211,17 +219,21 @@ if __name__ == "__main__":
             wait_for_wake_word()
             print("Wake word heard!")
             nod()                  # shows you it heard the wake word
-            wav_bytes = listen()
-            if not wav_bytes:
-                print("(Didn't catch any speech.)")
-                continue
-            heard, answer = ask_audio(wav_bytes)
-            if not heard or not answer:
-                print("(Didn't catch any speech.)")
-                continue
-            print("You:", heard)
-            print("Billy:", answer)
-            speak(answer)
+            while True:
+                wav_bytes = listen(CONVERSATION_TIMEOUT)
+                if not wav_bytes:
+                    print(f"(No speech for {CONVERSATION_TIMEOUT}s — conversation ended.)")
+                    break
+                heard, answer, end = ask_audio(wav_bytes)
+                if not heard or not answer:
+                    print("(Didn't catch any speech.)")
+                    continue
+                print("You:", heard)
+                print("Billy:", answer)
+                speak(answer)
+                if end:
+                    print("(Goodbye — conversation ended.)")
+                    break
         except KeyboardInterrupt:
             break
         except Exception as error: # keep the fish alive if one step fails

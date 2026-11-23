@@ -7,6 +7,7 @@ from google import genai
 from google.genai import types
 import numpy as np
 import openwakeword
+import openwakeword.utils
 from openwakeword.model import Model
 import requests
 from faster_whisper import WhisperModel
@@ -33,7 +34,8 @@ SYSTEM = (
 mouth = Motor(forward=5, backward=6, enable=12)
 body = Motor(forward=19, backward=26, enable=13)
 stt = WhisperModel("tiny.en", device="cpu", compute_type="int8")
-openwakeword.utils.download_models([WAKE_WORD])
+if hasattr(openwakeword.utils, "download_models"):
+    openwakeword.utils.download_models([WAKE_WORD])
 oww = Model(wakeword_models=[WAKE_WORD], inference_framework="onnx")
 ai = genai.Client()          # reads GEMINI_API_KEY from the environment
 history = []

@@ -19,7 +19,7 @@ WAKE_WORD = "hey_jarvis"     # built-in openWakeWord options: hey_jarvis, hey_my
 WAKE_THRESHOLD = 0.5         # raise to 0.6 if it triggers accidentally
 ELEVENLABS_VOICE_ID = "pqHfZKP75CvOlQylNhV4"  # Bill (premade voice; works on free tier)
 ELEVENLABS_MODEL = "eleven_flash_v2_5"        # ultra-low latency
-SILENCE_LEVEL = 200          # raise this if it never stops listening
+SILENCE_LEVEL = 120          # raise this if it never stops listening
 MOUTH_LEVEL = 800            # lower this if the mouth stays shut
 MOUTH_SPEED = 0.7            # 0 to 1
 MIC_DEVICE = "plughw:Device,0"  # ALSA capture device from `arecord -l`
@@ -72,27 +72,39 @@ def wait_for_wake_word():
 def listen():
     """Record until about 1.3 seconds of quiet follows speech (10 second limit)."""
     proc = open_mic_stream()
-    frames, quiet_frames, heard_speech = [], 0, False
+    frames, quiet_frames, speech_frames, heard_speech = [], 0, 0, False
     max_loudness = 0.0
     started = time.time()
     print("Listening... speak now!")
     try:
+        # Discard the first ~0.16s in case opening the USB mic produces a click
+        for _ in range(5):
+            read_frame(proc, 512)
         while time.time() - started < 10:
             frame = read_frame(proc, 512)
             frames.append(frame)
             loudness = float(np.sqrt(np.mean(frame.astype(np.float32) ** 2)))
             max_loudness = max(max_loudness, loudness)
             if loudness > SILENCE_LEVEL:
-                heard_speech, quiet_frames = True, 0
+                speech_frames += 1
+                quiet_frames = 0
+                if speech_frames >= 3:
+                    heard_speech = True
             elif heard_speech:
                 quiet_frames += 1
+            else:
+                speech_frames = 0
             if heard_speech and quiet_frames > 40:
                 break
     finally:
         proc.terminate()
         proc.wait()
+    audio = np.concatenate(frames).astype(np.float32) / 32768.0
+    peak = float(np.max(np.abs(audio))) if len(audio) else 0.0
+    if peak > 0:
+        audio = audio * min(20.0, 0.8 / peak)  # boost quiet mics for Whisper
     print(f"(Recorded {len(frames) * 512 / 16000:.1f}s, peak loudness: {max_loudness:.0f})")
-    return np.concatenate(frames).astype(np.float32) / 32768.0
+    return audio
 
 
 def transcribe(audio):

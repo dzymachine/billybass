@@ -28,7 +28,8 @@ ELEVENLABS_MODEL = "eleven_flash_v2_5"        # ultra-low latency
 SILENCE_LEVEL = 120          # raise this if it never stops listening
 MOUTH_LEVEL = 800            # lower this if the mouth stays shut
 MOUTH_SPEED = 0.7            # 0 to 1
-MIC_DEVICE = "plughw:Device,0"  # ALSA capture device from `arecord -l`
+MIC_DEVICE = "plughw:Device,0"      # ALSA capture device from `arecord -l`
+SPEAKER_DEVICE = "plughw:Headphones,0"  # ALSA playback device from `aplay -l`
 SYSTEM = (
     "You are Billy, a talking singing fish mounted on a wall plaque. "
     "Be warm, funny and brief. Answer in one or two short spoken sentences. "
@@ -182,7 +183,7 @@ def speak(text):
         rate = w.getframerate()
         samples = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16)
 
-    player = subprocess.Popen(["aplay", "-q", wav_path])
+    player = subprocess.Popen(["aplay", "-D", SPEAKER_DEVICE, "-q", wav_path])
     step = int(rate * 0.08)  # look at the voice in 80 millisecond slices
     start = time.time()
     for i in range(0, len(samples), step):
@@ -203,9 +204,10 @@ def nod():
 
 
 if __name__ == "__main__":
-    print(f"Billy is ready (mic: {MIC_DEVICE}). Say 'Hey Jarvis'!")
+    print(f"Billy is ready (mic: {MIC_DEVICE}, speaker: {SPEAKER_DEVICE}).")
     while True:
         try:
+            print("\nReady! Say 'Hey Jarvis'...")
             wait_for_wake_word()
             print("Wake word heard!")
             nod()                  # shows you it heard the wake word

@@ -12,7 +12,6 @@ from openwakeword.model import Model
 import requests
 from faster_whisper import WhisperModel
 from gpiozero import Motor
-from pvrecorder import PvRecorder
 
 # ---------- settings you may need to change ----------
 MODEL = "gemini-3.8-flash"   # fast Gemini model for spoken replies
@@ -23,7 +22,7 @@ ELEVENLABS_MODEL = "eleven_flash_v2_5"        # ultra-low latency
 SILENCE_LEVEL = 500          # raise this if it never stops listening
 MOUTH_LEVEL = 800            # lower this if the mouth stays shut
 MOUTH_SPEED = 0.7            # 0 to 1
-MIC_INDEX = -1               # -1 = default mic; set to your USB mic's number from the printed list
+MIC_DEVICE = "plughw:Device,0"  # ALSA capture device from `arecord -l`
 SYSTEM = (
     "You are Billy, a talking singing fish mounted on a wall plaque. "
     "Be warm, funny and brief. Answer in one or two short spoken sentences. "
@@ -41,30 +40,42 @@ ai = genai.Client()          # reads GEMINI_API_KEY from the environment
 history = []
 
 
+def open_mic_stream():
+    return subprocess.Popen(
+        ["arecord", "-D", MIC_DEVICE, "-q", "-f", "S16_LE", "-r", "16000", "-c", "1", "-t", "raw"],
+        stdout=subprocess.PIPE,
+    )
+
+
+def read_frame(proc, samples):
+    raw = proc.stdout.read(samples * 2)
+    if len(raw) < samples * 2:
+        raise RuntimeError("Microphone stream ended unexpectedly.")
+    return np.frombuffer(raw, dtype=np.int16)
+
+
 def wait_for_wake_word():
     oww.reset()
-    rec = PvRecorder(frame_length=1280, device_index=MIC_INDEX)
-    rec.start()
+    proc = open_mic_stream()
     try:
         while True:
-            audio = np.array(rec.read(), dtype=np.int16)
+            audio = read_frame(proc, 1280)
             scores = oww.predict(audio)
             if any(score > WAKE_THRESHOLD for score in scores.values()):
                 return
     finally:
-        rec.stop()
-        rec.delete()
+        proc.terminate()
+        proc.wait()
 
 
 def listen():
     """Record until about 1.3 seconds of quiet follows speech (10 second limit)."""
-    rec = PvRecorder(frame_length=512, device_index=MIC_INDEX)
-    rec.start()
+    proc = open_mic_stream()
     frames, quiet_frames, heard_speech = [], 0, False
     started = time.time()
     try:
         while time.time() - started < 10:
-            frame = np.array(rec.read(), dtype=np.int16)
+            frame = read_frame(proc, 512)
             frames.append(frame)
             loudness = np.sqrt(np.mean(frame.astype(np.float32) ** 2))
             if loudness > SILENCE_LEVEL:
@@ -74,8 +85,8 @@ def listen():
             if heard_speech and quiet_frames > 40:
                 break
     finally:
-        rec.stop()
-        rec.delete()
+        proc.terminate()
+        proc.wait()
     return np.concatenate(frames).astype(np.float32) / 32768.0
 
 
@@ -145,14 +156,15 @@ def nod():
 
 
 if __name__ == "__main__":
-    print("Microphones:", PvRecorder.get_available_devices())
-    print("Billy is ready. Say the wake word.")
+    print(f"Billy is ready (mic: {MIC_DEVICE}). Say 'Hey Jarvis'!")
     while True:
         try:
             wait_for_wake_word()
+            print("Wake word heard! Listening...")
             nod()                  # shows you it heard the wake word
             text = transcribe(listen())
             if not text:
+                print("(Didn't catch any speech.)")
                 continue
             print("You:", text)
             answer = ask(text)

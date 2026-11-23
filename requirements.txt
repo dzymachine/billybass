@@ -1,6 +1,5 @@
 google-genai
 openwakeword
-pvrecorder
 faster-whisper
 numpy
 requests

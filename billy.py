@@ -19,7 +19,7 @@ WAKE_WORD = "hey_jarvis"     # built-in openWakeWord options: hey_jarvis, hey_my
 WAKE_THRESHOLD = 0.5         # raise to 0.6 if it triggers accidentally
 ELEVENLABS_VOICE_ID = "pqHfZKP75CvOlQylNhV4"  # Bill (premade voice; works on free tier)
 ELEVENLABS_MODEL = "eleven_flash_v2_5"        # ultra-low latency
-SILENCE_LEVEL = 500          # raise this if it never stops listening
+SILENCE_LEVEL = 200          # raise this if it never stops listening
 MOUTH_LEVEL = 800            # lower this if the mouth stays shut
 MOUTH_SPEED = 0.7            # 0 to 1
 MIC_DEVICE = "plughw:Device,0"  # ALSA capture device from `arecord -l`
@@ -44,6 +44,7 @@ def open_mic_stream():
     return subprocess.Popen(
         ["arecord", "-D", MIC_DEVICE, "-q", "-f", "S16_LE", "-r", "16000", "-c", "1", "-t", "raw"],
         stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
     )
 
 
@@ -72,12 +73,15 @@ def listen():
     """Record until about 1.3 seconds of quiet follows speech (10 second limit)."""
     proc = open_mic_stream()
     frames, quiet_frames, heard_speech = [], 0, False
+    max_loudness = 0.0
     started = time.time()
+    print("Listening... speak now!")
     try:
         while time.time() - started < 10:
             frame = read_frame(proc, 512)
             frames.append(frame)
-            loudness = np.sqrt(np.mean(frame.astype(np.float32) ** 2))
+            loudness = float(np.sqrt(np.mean(frame.astype(np.float32) ** 2)))
+            max_loudness = max(max_loudness, loudness)
             if loudness > SILENCE_LEVEL:
                 heard_speech, quiet_frames = True, 0
             elif heard_speech:
@@ -87,6 +91,7 @@ def listen():
     finally:
         proc.terminate()
         proc.wait()
+    print(f"(Recorded {len(frames) * 512 / 16000:.1f}s, peak loudness: {max_loudness:.0f})")
     return np.concatenate(frames).astype(np.float32) / 32768.0
 
 
@@ -160,7 +165,7 @@ if __name__ == "__main__":
     while True:
         try:
             wait_for_wake_word()
-            print("Wake word heard! Listening...")
+            print("Wake word heard!")
             nod()                  # shows you it heard the wake word
             text = transcribe(listen())
             if not text:

@@ -94,7 +94,7 @@ def listen():
                 quiet_frames += 1
             else:
                 speech_frames = 0
-            if heard_speech and quiet_frames > 40:
+            if heard_speech and quiet_frames > 22:
                 break
     finally:
         proc.terminate()
@@ -108,7 +108,7 @@ def listen():
 
 
 def transcribe(audio):
-    segments, _ = stt.transcribe(audio, language="en")
+    segments, _ = stt.transcribe(audio, language="en", beam_size=1)
     return " ".join(s.text for s in segments).strip()
 
 
